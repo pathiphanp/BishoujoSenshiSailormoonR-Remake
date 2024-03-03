@@ -4,6 +4,5 @@ using UnityEngine;
 
 public interface AddDebuff
 {
-    void AddKnockback(Vector2 knockbackDiraction, float knockbackForce);
-    void AddStun();
+    void AddKnockback(Vector2 knockbackDiraction, float knockbackForce,bool onGrad);
 }
