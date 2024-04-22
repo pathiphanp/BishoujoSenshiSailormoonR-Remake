@@ -4,18 +4,19 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using static PlayerActionController;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 public enum ActionType
 {
     NORMAL, MOVE, JUMP, JUMPKICK, MOVEJUMP, ATTACK, ATTACKAROUND,
     SPECIALATTACK, GRAB, TAKEGRAB, TAKEGRABTHORW, KNOCKBACK, DIE, GAMEOVER
-    , MOVEBACK, STUN
+    , GETHIT, MOVEBACK, STUN
 }
 public class PlayerControl : MonoBehaviour, IGamePlayControlActions
 {
     [Header("ActionType")]
     [SerializeField] ActionType actionType;
     [Header("Animator")]
-    [SerializeField] Animator anim;
+    [SerializeField] public Animator anim;
     [SerializeField] public Sprite icon;
     [Header("Collider")]
     [SerializeField] Collider2D attack;
@@ -82,7 +83,7 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
     [HideInInspector] public List<Enemy> enemyList = new List<Enemy>();
     public Enemy enemyGrab;
     [Header("TakeDamage")]
-    int countTakedamage;
+    [SerializeField] int countTakedamage;
     Coroutine countTakeKnockback;
     [SerializeField] bool canTakeDamage = true;
     void OnEnable()
@@ -112,6 +113,10 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         GroundFollowPlayer();
         DetectBase();
         DetectGrabEnemy();
+        if(Input.GetKeyDown(KeyCode.B))
+        {
+
+        }
     }
     void FixedUpdate()
     {
@@ -125,12 +130,12 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
             enemyList.Add(other.gameObject.GetComponent<Enemy>());
             foreach (Enemy e in enemyList)
             {
-                e.playerControl = this;
+                e.player = this;
             }
             if (actionType == ActionType.JUMPKICK)
             {
                 Enemy _enemy = other.GetComponent<Enemy>();
-                _enemy.playerControl = this;
+                _enemy.player = this;
                 _enemy.TakeDamage(damage);
                 Vector2 knockbackDirection = (transform.position - _enemy.gameObject.transform.position).normalized;
                 _enemy.AddKnockback(knockbackDirection, finishKnockbackForce, false);
@@ -143,6 +148,10 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         {
             other.gameObject.SetActive(false);
             ControlClampPlayer.Instance.CheckClamp();
+        }
+        if (other.gameObject.tag == "BossMap")
+        {
+            SceneManager.LoadScene("Boss");
         }
     }
     void OnTriggerExit2D(Collider2D other)
@@ -193,7 +202,7 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         //CheckStopCameraBack
         if (inputVector.x < 0)
         {
-            ControlClampPlayer.Instance.StopFollowPlayer();
+            // ControlClampPlayer.Instance.StopFollowPlayer();
             if (!reverse)
             {
                 FlipX(true);
@@ -205,7 +214,7 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         }
         else if (inputVector.x > 0)
         {
-            ControlClampPlayer.Instance.StartFollowPlayer();
+            // ControlClampPlayer.Instance.StartFollowPlayer();
             if (!reverse)
             {
                 FlipX(false);
@@ -257,7 +266,6 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         yield return new WaitForSeconds(0.1f);
         checkIdel = StartCoroutine(CheckIdel());
     }
-
     void GroundFollowPlayer()
     {
         if (canFollowPlayer)
@@ -386,7 +394,6 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
                 }
             }
         }
-
     }
     #region Scripts For Animation
     void ReturnAtk()
@@ -490,7 +497,6 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
                 actionType = ActionType.ATTACKAROUND;
                 attackAround.CastAroundAttack(damage, finishKnockbackForce, false);
             }
-
         }
     }
     public void OnSupperAttack(InputAction.CallbackContext context)
@@ -555,14 +561,30 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         Gizmos.DrawRay(jumpDetector.transform.position, -Vector2.up * detectionDistance);
         Gizmos.DrawRay(grabDetector.transform.position, -Vector2.left * detectionDistanceGrab);
     }
-
+    #region  Takedamage
     public void Takedamage(int _damage, Enemy _enemy)
     {
         if (canTakeDamage)
         {
             hp -= _damage;
+            if (enemyGrab != null)
+            {
+                enemyGrab.transform.SetParent(null);
+                enemyGrab.GetComponent<Enemy>().ReturnKnockbackToMove();
+                enemyGrab.GetComponent<Enemy>().actionType = ActionType.MOVEBACK;
+                enemyGrab.GetComponent<Enemy>().MoveBack();
+                enemyGrab = null;
+            }
             if (hp > 0)
             {
+                actionType = ActionType.GETHIT;
+                if (countTakeKnockback != null)
+                {
+                    StopCoroutine(countTakeKnockback);
+                }
+                CallStopCheckIdel();
+                SetStopMove();
+                playerControl.GamePlayControl.Disable();
                 HpUIManager.Instance.UpdateHpPlayer();
                 if (_enemy != null)
                 {
@@ -570,24 +592,36 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
                 }
                 if (_enemy != null)
                 {
-                    if (countTakeKnockback == null)
-                    {
-                        countTakeKnockback = StartCoroutine(CountTakeDamageKnockback());
-                    }
+                    countTakeKnockback = StartCoroutine(CountTakeDamageKnockback());
                     countTakedamage++;
-                    if (countTakedamage == 3)
+                    if (countTakedamage == 3 || _enemy.specialAttack)
                     {
+                        if (_enemy.specialAttack)
+                        {
+                            countTakedamage = 0;
+                        }
+                        anim.Play("KnockBack");
                         canTakeDamage = false;
-                        StopCoroutine(countTakeKnockback);
                         countTakeKnockback = null;
                         Vector2 knockbackDiraction = (transform.position - _enemy.gameObject.transform.position).normalized;
-                        Knockback(knockbackDiraction, finishKnockbackForce);
+                        knockbackDiraction.x = -knockbackDiraction.x;
+                        StartCoroutine(Knockback(knockbackDiraction, -0.005f));
+                    }
+                    else
+                    {
+                        if (_enemy.transform.position.x < transform.position.x)
+                        {
+                            FlipX(true);
+                        }
+                        else
+                        {
+                            FlipX(false);
+                        }
+                        anim.Play("GetHit");
                     }
                 }
-
             }
-            //Check Knockback;
-            else if (hp <= 0)
+            else if (hp <= 0)//Check Knockback;
             {
                 StopAllCoroutines();
                 CancelGrab();
@@ -600,6 +634,15 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
                 anim.Play("Die");
             }
         }
+    }
+    #endregion
+    void ReturnGetHit()
+    {
+        actionType = ActionType.NORMAL;
+        playerControl.GamePlayControl.Enable();
+        canTakeDamage = true;
+        ResetAtk();
+        CheckIdel();
     }
     #region AnimationCheck
     void CheckLife()
@@ -625,7 +668,6 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
             //Spawn player to Die Positon ane Reset life
             //Retrun To main manu 
         }
-
     }
     void ResetStatusPlyer()
     {
@@ -645,17 +687,18 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
     #endregion
     IEnumerator CountTakeDamageKnockback()
     {
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(1f);
         countTakedamage = 0;
         countTakeKnockback = null;
     }
-    IEnumerator Knockback(Vector2 knockbackDiraction, float knockbackForce)
+    public IEnumerator Knockback(Vector3 knockbackDiraction, float knockbackForce)
     {
         actionType = ActionType.KNOCKBACK;
         rb.velocity = Vector3.zero;
         knockbackDiraction.y = 0;
         rb.AddForce(knockbackDiraction * knockbackForce, ForceMode2D.Impulse);
-        yield return new WaitForSeconds(0.4f);
+        yield return new WaitForSeconds(0.05f);
+        rb.Sleep();
         rb.velocity = Vector3.zero;
         anim.Play("RetrunToNormal");
     }
@@ -685,5 +728,14 @@ public class PlayerControl : MonoBehaviour, IGamePlayControlActions
         life = 3;
         rb.gravityScale = 10;
         HpUIManager.Instance.UpdateLife();
+    }
+    void Win()
+    {
+        StartCoroutine(DelayWin());
+    }
+    IEnumerator DelayWin()
+    {
+        yield return new WaitForSeconds(3);
+        SceneManager.LoadScene("Win");
     }
 }

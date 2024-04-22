@@ -8,6 +8,7 @@ TagManager:
   - Enemy
   - CheckEnemy
   - ClampMap
+  - BossMap
   layers:
   - Default
   - TransparentFX

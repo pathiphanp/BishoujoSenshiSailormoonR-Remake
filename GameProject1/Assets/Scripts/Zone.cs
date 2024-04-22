@@ -8,4 +8,5 @@ public class Zone
     public int firstEnemySet;
     public SetEnemy[] set;
     public bool nextMap;
+    public bool boss;
 }

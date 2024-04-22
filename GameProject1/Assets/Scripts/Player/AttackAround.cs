@@ -46,7 +46,7 @@ public class AttackAround : MonoBehaviour
         if (other.gameObject.tag == "Enemy")
         {
             Enemy _enemy = other.GetComponent<Enemy>();
-            _enemy.playerControl = player;
+            _enemy.player = player;
             _enemy.TakeDamage(damage);
             Vector2 knockbackDirection = (transform.position - _enemy.gameObject.transform.position).normalized;
             _enemy.AddKnockback(knockbackDirection, finishKnockbackForce, false);

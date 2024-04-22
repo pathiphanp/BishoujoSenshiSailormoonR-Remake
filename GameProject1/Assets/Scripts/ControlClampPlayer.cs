@@ -6,7 +6,8 @@ using UnityEngine;
 public class ControlClampPlayer : Singleton<ControlClampPlayer>
 {
     PlayerControl playerControl;
-    [SerializeField] CinemachineVirtualCamera virtualCamera;
+    [SerializeField] CinemachineVirtualCamera virtualCameraFollowPlayer;
+    [SerializeField] public CinemachineVirtualCamera virtualCameraClampFightPosition;
     [SerializeField] GameObject[] clampPosition;
     public int indexClamp = 0;
     [SerializeField] public Transform rightClamp;
@@ -19,6 +20,12 @@ public class ControlClampPlayer : Singleton<ControlClampPlayer>
     [SerializeField] Transform startTransform;
     [SerializeField] GameObject boxmap;
     [SerializeField] Transform ChangePositionboxmap;
+    [Header("BossMap")]
+    [SerializeField] Transform startTransformBoss;
+    [SerializeField] GameObject boxmapBoss;
+    [SerializeField] Transform ChangePositionboxmapBoss;
+    [SerializeField] GameObject boss;
+    [SerializeField] GameObject Fileboss;
     //8.5 //18.8 //30.5 //41.48 //52.3
     private void Start()
     {
@@ -29,24 +36,38 @@ public class ControlClampPlayer : Singleton<ControlClampPlayer>
     public void CheckClamp()
     {
         onClamp = true;
-        StopFollowPlayer();
+        StartClamp();
         setZone++;
         ControlSpawnEnemy.Instance.indexZone = setZone;
         ControlSpawnEnemy.Instance.FirstSpawnEnemy();
+        ControlSpawnEnemy.Instance.controlClampPlayer = this;
     }
     public void StartFollowPlayer()
     {
         if (!onClamp)
         {
-            if (virtualCamera.gameObject.transform.position.x < playerControl.gameObject.transform.position.x)
+            if (virtualCameraFollowPlayer.gameObject.transform.position.x < playerControl.gameObject.transform.position.x)
             {
-                virtualCamera.Follow = playerControl.gameObject.transform;
+                virtualCameraFollowPlayer.Follow = playerControl.gameObject.transform;
             }
         }
     }
+    void StartClamp()
+    {
+        virtualCameraFollowPlayer.Priority = 0;
+        virtualCameraClampFightPosition.Priority = 1;
+        Vector3 clampFightPosition = clampPosition[indexClamp].gameObject.transform.position;
+        clampFightPosition.z = -10;
+        virtualCameraClampFightPosition.gameObject.transform.position = clampFightPosition;
+    }
+    public void StopClamp()
+    {
+        virtualCameraFollowPlayer.Priority = 1;
+        virtualCameraClampFightPosition.Priority = 0;
+    }
     public void StopFollowPlayer()
     {
-        virtualCamera.Follow = null;
+        virtualCameraFollowPlayer.Follow = null;
     }
     public void SetNextCheckPoint()
     {
@@ -58,15 +79,31 @@ public class ControlClampPlayer : Singleton<ControlClampPlayer>
         }
     }
 
-    public IEnumerator NextMap()
+    public IEnumerator NextMap(bool bossMap)
     {
-        fade.SetActive(true);
-        yield return new WaitForSeconds(0.5f);
-        playerControl.transform.position = startTransform.position;
-        boxmap.transform.position = ChangePositionboxmap.position;
-        yield return new WaitForSeconds(0.5f);
-        fade.SetActive(false);
-        SetNextCheckPoint();
+        if (!bossMap)
+        {
+            fade.SetActive(true);
+            yield return new WaitForSeconds(0.5f);
+            playerControl.transform.position = startTransform.position;
+            boxmap.transform.position = ChangePositionboxmap.position;
+            yield return new WaitForSeconds(0.5f);
+            fade.SetActive(false);
+            SetNextCheckPoint();
+        }
+        else
+        {
+            fade.SetActive(true);
+            yield return new WaitForSeconds(0.5f);
+            playerControl.transform.position = startTransformBoss.position;
+            boxmap.transform.position = ChangePositionboxmapBoss.position;
+            yield return new WaitForSeconds(0.5f);
+            fade.SetActive(false);
+            boss.gameObject.SetActive(true);
+            
+        }
     }
+
+    
 
 }
